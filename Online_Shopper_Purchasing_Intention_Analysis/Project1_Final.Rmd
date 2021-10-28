@@ -1,0 +1,277 @@
+---
+title: "Project1"
+author: "Rahasya Chandan and Monisha Prasad"
+date: "10/27/2021"
+output: pdf_document
+---
+
+# Description
+
+The dataset consists of feature vectors belonging to 12,330 sessions.The dataset was formed so that each session would belong to a different user in a 1-year period to avoid any tendency to a specific campaign, special day, user profile, or period. The dataset contains information about the number 
+of different types of pages visited by the visitor in that session and total time spent in each of these page categories. The values of these 
+features are derived from the URL information of the pages visited by the user and updated in real time when a user takes an action, e.g. moving from one page to another. The "Bounce Rate", "Exit Rate" and "Page Value" features represent the metrics measured by "Google Analytics" for each page in the e-commerce site. The "Special Day" feature indicates the closeness of the site visiting time to a specific special day (e.g. Mother’s Day, Valentine's Day) in which the sessions are more likely to be finalized with transaction.The dataset also includes operating system, browser, region, traffic type, visitor type as returning or new visitor, a Boolean value indicating whether the date of the visit is weekend, and month of the year. 
+
+# Goal
+
+We are trying to understand if a user is more likely to finalize a transaction close to a special day compared to the weekend and how the Administrative", "Administrative Duration", "Informational", "Informational Duration", "Product Related" and "Product Related Duration" columns are related to a user completing a transcation. 
+
+```{r}
+library(tidyr) 
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(corrplot)
+library(lares)
+library(gridExtra)
+library(colorspace)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+
+```
+
+```{r}
+
+df_shopper <- read_csv("online_shoppers_intention.csv")
+
+```
+
+#Data Cleaning 
+
+The first step performed after reading the dataset is data cleaning. We go through the process of dropping the irrelevant columns such as “Browser” and “OperatingSystems”. Then we remove the not applicable data from the dataset to maintain a clean working directory.
+
+```{r}
+#drop columns 
+dropcolumns <- c("Browser","OperatingSystems")
+df_shopper <- df_shopper[,!(names(df_shopper) %in% dropcolumns)]
+df_shopper <- df_shopper %>% mutate_all(na_if,"")
+
+#remove N/A values
+df_shopper <- df_shopper %>% drop_na()
+
+```
+
+#Data Exploration 
+
+We are using Data exploration analysis to understand what is in the dataset and review the different characteristics of the data.
+
+```{r}
+#print dataset characteristics 
+head(df_shopper)
+
+summary(df_shopper)
+
+sapply(df_shopper, class)
+
+
+#To further explore the characteristics of the data set we see the correlation between the different columns in the data frame
+#Removing non-numeric columns
+dropcolumns2 <- c("Month", "VisitorType", "Weekend", "Weekend_logical_values", "Revenue")
+df_shopper_corr <- df_shopper[,!(names(df_shopper) %in% dropcolumns2)]
+
+#Correlation plot
+M<-cor(df_shopper_corr)
+head(round(M,2))
+corrplot(M, method="circle")
+
+#Display the most correlated columns 
+corr_cross(df_shopper_corr, 
+           top= 23)
+
+
+
+```
+
+#Data Manipulation 
+
+We are using Data manipulation to manipulate the data by adding three more columns "AvgTime_ProductWebsite", "AvgTime_InfoWebsite" and "AvgTime_AdminWebsite". These columns show the average time a user spend on a single "Administrative", "Informational", and "Product Related" page.
+
+```{r}
+#drop columns 
+#Average time a customer spends on a single Product Website
+df_shopper$AvgTime_ProductWebsite = df_shopper$ProductRelated_Duration/df_shopper$ProductRelated
+df_shopper <- df_shopper %>% drop_na()
+
+#Average time a customer spends on a single Informational Website
+df_shopper$AvgTime_InfoWebsite = df_shopper$Informational_Duration/df_shopper$Informational
+df_shopper <- df_shopper %>% drop_na()
+
+#Average time a customer spends on a single Administrative Website
+df_shopper$AvgTime_AdminWebsite = df_shopper$Administrative_Duration/df_shopper$Administrative
+df_shopper <- df_shopper %>% drop_na()
+
+
+#Data frame with new columns
+head(df_shopper)
+
+```
+
+These graphs show between the three pages, a user spends more time on a product related page before making a transaction
+
+```{r}
+
+#Box Plot to show the avg. no. of times they visited the website before transaction was made and avg. time they spent on a Product Page
+g2 <- ggplot(df_shopper, aes(x = PageValues, y = AvgTime_ProductWebsite, group = 1)) +
+  geom_boxplot()
+g2
+
+#Box Plot to show the avg. no. of times they visited the website before transaction was made and avg. time they spent on a Informational Page
+g3 <- ggplot(df_shopper, aes(x = PageValues, y = AvgTime_InfoWebsite, group = 1)) +
+  geom_boxplot()
+
+g3
+
+#Box Plot to show the avg. no. of times they visited the website before transaction was made and avg. time they spent on a Administrative Page
+g4 <- ggplot(df_shopper, aes(x = PageValues, y = AvgTime_AdminWebsite, group = 1)) +
+  geom_boxplot() 
+g4
+
+#These graphs shows us the relationship between the average time a customer spent on a single product/administrative/informational webpage and the average number of times they visited this webpage before making a transaction 
+
+```
+
+# Features of Interest 
+
+We look into features that could possibly affect a customer's decision to go through with a transaction. Here we look at the type of customer visiting the website, the successful transaction rates by months, and whether or not weekends and special days affect a customer's tendency to bounce from the website.
+
+```{r}
+
+#Distribution of customer Type by Region 
+g5 <- ggplot(data=df_shopper, aes(x=Region, fill= VisitorType)) +
+  geom_bar(stat="count", position="dodge") + 
+  labs (title = "Visitor type by Region") + 
+  scale_fill_discrete_qualitative()
+g5
+
+
+#Bar plot: Time a shopper spends on a Product page by region and whether they make a purchase 
+# We are exploring this graph which shows the time a customer spends on a product related website by region and if website makes revenue which shown 
+# by true or false.
+g1 <- ggplot(data = df_shopper, aes(x = Region ,y = ProductRelated_Duration, fill= Revenue))+
+  geom_bar(stat ="identity") + 
+  labs(title="Time a customer spends on Product Related page by region", y = "Time spent on Product related page")+
+  scale_fill_discrete_qualitative()
+g1
+
+
+
+#Whether or not the website makes revenue based on visitor type
+g6 <- ggplot(data=df_shopper, aes(x=VisitorType, fill= Revenue)) +
+  geom_bar(stat="count", position="dodge") + 
+  labs (title = "Revenue by Visitor Type", x = "Visitor Type") + 
+  scale_fill_discrete_qualitative()
+g6
+
+
+#Visitor vs Page Value wrt. Revenue 
+ggplot(df_shopper, aes(x=VisitorType, y=PageValues,fill=Revenue)) + 
+  geom_violin(trim=FALSE) + 
+  scale_fill_manual(values=c("#0000FF", "#00FF00")) + ylim(-50, 250) 
+
+```
+
+```{r}
+
+#Comparing successful transaction rate by month
+df_shopper_pie <- as.data.frame(table(df_shopper$Month, df_shopper$Revenue))
+df_shopper_pie <- subset(df_shopper_pie, df_shopper_pie$Var2 == TRUE)
+
+g7 <- pie(df_shopper_pie$Freq, labels = df_shopper_pie$Var1, main="Successful transaction by Month")
+g7
+
+#November and May have the highest transaction rates possibly due to the higher number of holidays during these months 
+
+```
+
+```{r}
+
+#Special Days vs. Bounce Rate
+g8 <- ggplot(data=df_shopper, aes(x=SpecialDay, y=BounceRates)) +
+  geom_bar(stat="identity", position="dodge", fill="palegreen") + labs (title = "Special Days vs. Bounce Rate", x = "Special Day", y = "Bounce Rate")
+g8
+#Bounce rates remain consistent even on special days, hence special days do not seem to have any effect on bounce rates
+
+#Weekend vs. Bounce Rate
+g9 <- ggplot(data=df_shopper, aes(x=Weekend, y=BounceRates)) +
+  geom_bar(stat="identity", position="dodge", fill="lightblue") + labs (title = "Weekend vs. Bounce Rate", x = "Weekend", y = "Bounce Rate")
+g9
+#Bounce rates drop slightly during the weekends as compared to weekdays 
+```
+
+# Data Visualization
+
+Finally we are using data visualization to show graphical representation to understand trends and patterns in the data. We apply data visualization in the form of a scatter plot by plotting and comparing the relationship between “PageValues” and “Special Days” vs “PageValues” and “ Weekend” to understand and see if the user is more likely to finalize a transaction close to a special day or close to the weekend. 
+
+```{r}
+
+#Bar Plot that has a count of pageValues and Special Days 
+g10 <- ggplot(df_shopper, aes(x = SpecialDay ,y = PageValues))+geom_point()
+g10
+
+
+#Convert weekend values true and false to 1 and 0
+logical_values <- as.integer(as.logical(df_shopper$Weekend))
+df_shopper <- df_shopper %>%
+  add_column(Weekend_logical_values = logical_values) %>%
+  relocate(Weekend_logical_values, .after = Weekend)
+
+#Bar Plot that has a count of pageValues and Weekend 
+g11 <- ggplot(df_shopper, aes(x = Weekend ,y = PageValues))+geom_point()
+g11
+```
+
+We are using line graphs to understand how time does a user spend on "Administrative","Informational", and "Product Related" pages during a sesson compared to them entering and leaving one of these pages without triggering any requests to the analytics server during that session
+
+```{r}
+
+#Graph of Admistrative Duration vs Bounce Rate
+g12 <- ggplot(df_shopper, aes(x=BounceRates, y=Administrative_Duration)) +
+  geom_line( color="#69b3a2", size=2, alpha=0.9, linetype=1) +
+  ggtitle("Administrative Duration vs Bounce Rate") 
+g12
+
+#Graph of Info Duration vs Bounce Rate
+g13 <- ggplot(df_shopper, aes(x=BounceRates, y=Informational_Duration)) +
+  geom_line( color="#69b3a2", size=2, alpha=0.9, linetype=1) +
+  ggtitle("Information Duration vs Bounce Rate")
+g13
+
+#Graph of Product Duration vs Bounce Rate
+g14 <- ggplot(df_shopper, aes(x=BounceRates, y=ProductRelated_Duration)) +
+  geom_line( color="#69b3a2", size=2, alpha=0.9, linetype=1) +
+  ggtitle("Product related Duration vs Bounce Rate")
+g14
+```
+We are plotting a bar graph to compare the relationships between "Product Related" page and “Special Days” vs the “Weekend” to understand and see if the user spend more time looking at a product, then are the going through a transaction closer to a special day or close to the weekend. 
+
+```{r}
+
+#If a user is looking at a product, are there going through a transaction more likely on a special day or weekend?
+#Graph of product related and special day
+g15 <- ggplot(data=df_shopper, aes(x=SpecialDay, y=ProductRelated, fill = Revenue)) +
+  geom_bar(stat="identity")
+g15
+
+#Graph of product related and Weekend
+g16 <- ggplot(df_shopper, aes(fill=Revenue, y=ProductRelated, x=Weekend_logical_values)) + 
+  geom_bar(position="dodge", stat="identity")
+g16
+```
+
+May and Febuary are the only months that has special days in the dataset while others others months do not have any data to show if there was a successfull transaction during special days. Therefore this dataset shows that a user is most likely to shop a succesful transaction during the weekned than special days
+
+```{r}
+
+#May is the only month with well documented Special Day values 
+test_1 <- subset(df_shopper, Month == "May")
+g17 <- ggplot(test_1, aes(y=ProductRelated, x=SpecialDay)) + 
+  geom_bar(position="dodge", stat="identity")
+
+g17
+
+```
+
+# Result
+
+The graphs show the user prefers to shop more likely on the weekends than on the special days. The users visit the web page an average number of times before finsializing the transaction on weekend than on special day. 
+
+May and Febuary are the only months that has special days in the dataset while others others months do not have any data to show if there was a successfull transaction during special days. Therefore this dataset shows that a user is most likely to shop a succesful transaction during the weekned than special days
+
