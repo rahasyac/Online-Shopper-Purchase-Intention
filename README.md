@@ -1,4 +1,4 @@
-# IE1600_Computation_and_Visualization_Project1
+# Online Shoppers Purchasing Intention
 Analyzing and exploring the Online Shoppers Purchasing Intention Dataset Data Set
 
 
